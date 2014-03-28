@@ -2,7 +2,7 @@
 
 from PIL import Image
 
- def get_length(stream):
+def get_length(stream):
     """Gets the number of bytes in the stream."""
     old_position = stream.tell()
     stream.seek(0)
