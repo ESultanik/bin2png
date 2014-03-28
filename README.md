@@ -10,7 +10,7 @@ On Windows, this is another solution: https://github.com/leeroybrun/Bin2PNG
 ```shell
 $ python bin2png.py file_to_encode -o output.png
 
-$ python bin2png.py output.png | diff - file_to_encode
+$ python bin2png.py output.png | diff - file_to_encode -s
 Files - and file_to_encode are identical
 ```
 
