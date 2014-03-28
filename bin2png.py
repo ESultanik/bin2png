@@ -34,14 +34,23 @@ def choose_file_dimensions(infile):
     sqrt = math.sqrt(num_pixels)
     sqrt_max = int(math.ceil(sqrt))
     dimensions = (sqrt_max, sqrt_max)
-    for i in range(int(sqrt), 1, -1):
-        if num_pixels % i == 0:
+    best_dimensions = None
+    best_extra_bytes = None
+    for i in range(int(sqrt_max), 0, -1):
+        is_perfect = num_pixels % i == 0
+        if is_perfect:
             dimensions = (i, num_pixels / i)
+        else:
+            dimensions = (i, num_pixels / i + 1)
+        extra_bytes = dimensions[0] * dimensions[1] * 3 - num_bytes
+        if dimensions[0]*dimensions[1] >= num_pixels and (best_dimensions is None or extra_bytes < best_extra_bytes):
+            best_dimensions = dimensions
+            best_extra_bytes = extra_bytes
+        if is_perfect:
             break
-    extra_bytes = dimensions[0] * dimensions[1] * 3 - num_bytes
-    if extra_bytes > 0:
-        sys.stderr.write("Could not find PNG dimensions that perfectly encode %s bytes; the encoding will be tail-padded with %s zeros." % (num_bytes, extra_bytes))
-    return dimensions
+    if best_extra_bytes > 0:
+        sys.stderr.write("Could not find PNG dimensions that perfectly encode %s bytes; the encoding will be tail-padded with %s zeros.\n" % (num_bytes, best_extra_bytes))
+    return best_dimensions
 
 def file_to_png(infile, outfile, dimensions = None):
     if dimensions is None:
@@ -72,14 +81,28 @@ def file_to_png(infile, outfile, dimensions = None):
 
     img.save(outfile, format="PNG")
 
+def png_to_file(infile, outfile):
+    img = Image.open(infile)
+    rgb_im = img.convert('RGB')
+    for row in range(img.size[1]):
+        for col in range(img.size[0]):
+            r, g, b = rgb_im.getpixel((col, row))
+            outfile.write(chr(r))
+            outfile.write(chr(g))
+            outfile.write(chr(b))
+
 if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="A simple cross-platform script for encoding any binary file into a lossless PNG.", prog="bin2png")
 
-    parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin, help="the file to process (defaults to '-', which is stdin)")
+    parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin, help="the file to encode as a PNG (defaults to '-', which is stdin)")
     parser.add_argument("-o", "--outfile", type=argparse.FileType('w'), default=sys.stdout, help="the output file (defaults to '-', which is stdout)")
+    parser.add_argument("-d", "--decode", action="store_true", default=False, help="decodes the input PNG back to a file")
 
     args = parser.parse_args()
 
-    file_to_png(args.file, args.outfile)
+    if args.decode:
+        png_to_file(args.file, args.outfile)
+    else:
+        file_to_png(args.file, args.outfile)
