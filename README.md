@@ -23,12 +23,12 @@ http://www.sultanik.com/<br />
 http://www.digitaloperatives.com/
 
 --------------------------------------------------
-zenarcher007's fork:
-On this fork of bin2png from Evan A. Sultanik, I made some major changes to the script
-• Manually converted it to work with Python 3
-• Added a -v --verbose option to only display extra information when that flag is specified
-    (I changed the previous flag for height to -l)
-• Added a progress percentage display
-    (Specify the --no-progress option to prevent displaying the progress)
-• Decoding an image to a file now cuts off null bytes from the end that may be created when generating an image
-• Added a -s --square flag to only generate square images
+zenarcher007's fork:  
+On this fork of bin2png from Evan A. Sultanik, I made some major changes to the script  
+• Manually converted it to work with Python 3  
+• Added a -v --verbose option to only display extra information when that flag is specified  
+    (I changed the previous flag for height to -l)  
+• Added a progress percentage display  
+    (Specify the --no-progress option to prevent displaying the progress)  
+• Decoding an image to a file now cuts off null bytes from the end that may be created when generating an image  
+• Added a -s --square flag to only generate square images  
