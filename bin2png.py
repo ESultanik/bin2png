@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import io
 import math
 import os
@@ -201,9 +202,7 @@ def png_to_file(infile, outfile, no_progress=False, verbose=False):
                 sys.stderr.write("Omitting %s zeroes from end of file\n" % pix_buffer)
 
 
-if __name__ == "__main__":
-    import argparse
-
+def main(argv=None):
     parser = argparse.ArgumentParser(description="A simple cross-platform script for encoding any binary file into a "
                                                  "lossless PNG.", prog="bin2png")
 
@@ -229,7 +228,10 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="enable debugging messages")
     parser.add_argument("--no-progress", action="store_true", default=False, help="don't display percent progress")
 
-    args = parser.parse_args()
+    if argv is None:
+        argv = sys.argv
+
+    args = parser.parse_args(argv)
 
     if args.decode:
         png_to_file(args.file, args.outfile, no_progress=args.no_progress, verbose=args.verbose)
@@ -239,3 +241,7 @@ if __name__ == "__main__":
             dims = (args.width, args.height)
 
         file_to_png(args.file, args.outfile, dimensions=dims)
+
+
+if __name__ == "__main__":
+    main()
