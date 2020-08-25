@@ -9,28 +9,33 @@ from PIL import Image
 
 
 class FileReader(object):
-    def __init__(self, path):
-        if 'file' in locals() and isinstance(path, file):
-            if path.name == "<stdin>":
-                infile = sys.stdin.buffer.read()
-                self.length = len(infile)
-                self.file = io.StringIO(infile)
-            else:
-                self.length = os.path.getsize(path.name)
-                self.file = path
+    def __init__(self, path_or_stream):
+        if hasattr(path_or_stream, "name") and path_or_stream.name != "<stdin>":
+            self.length = os.path.getsize(path_or_stream.name)
+            self.file = path_or_stream
         else:
-            str_path = path.name
-            self.length = os.path.getsize(str_path)
-            self.file = open(str_path)
+            if sys.version_info.major >= 3:
+                infile = sys.stdin.buffer.read()
+            else:
+                infile = sys.stdin.read()
+            self.length = len(infile)
+            self.file = io.BytesIO(infile)
+
+    @staticmethod
+    def new(path_or_stream):
+        if isinstance(path_or_stream, FileReader):
+            return path_or_stream
+        else:
+            return FileReader(path_or_stream)
 
     def __len__(self):
         return self.length
 
-    def __getattr__(self, attr):
-        return getattr(self.file, attr)
-
-    def __iter__(self):
-        return iter(self.file)
+    def read(self, n):
+        if sys.version_info.major >= 3:
+            return [i for i in self.file.read(n)]
+        else:
+            return map(ord, self.file.read(n))
 
 
 def choose_file_dimensions(infile, input_dimensions=None):
@@ -38,8 +43,7 @@ def choose_file_dimensions(infile, input_dimensions=None):
             and input_dimensions[1] is not None:
         # the dimensions were already fully specified
         return input_dimensions
-    if not isinstance(infile, FileReader):
-        infile = FileReader(infile)
+    infile = FileReader.new(infile)
     num_bytes = len(infile)
     num_pixels = int(math.ceil(float(num_bytes) / 3.0))
     sqrt = math.sqrt(num_pixels)
@@ -52,24 +56,24 @@ def choose_file_dimensions(infile, input_dimensions=None):
         if input_dimensions[0] is not None:
             # the width is specified but the height is not
             if num_pixels % input_dimensions[0] == 0:
-                return input_dimensions[0], num_pixels / input_dimensions[0]
+                return input_dimensions[0], num_pixels // input_dimensions[0]
             else:
-                return input_dimensions[0], num_pixels / input_dimensions[0] + 1
+                return input_dimensions[0], num_pixels // input_dimensions[0] + 1
         else:
             # the height is specified but the width is not
             if num_pixels % input_dimensions[1] == 0:
-                return num_pixels / input_dimensions[1], input_dimensions[1]
+                return num_pixels // input_dimensions[1], input_dimensions[1]
             else:
-                return num_pixels / input_dimensions[1] + 1, input_dimensions[1]
+                return num_pixels // input_dimensions[1] + 1, input_dimensions[1]
 
     best_dimensions = None
     best_extra_bytes = None
     for i in range(int(sqrt_max), 0, -1):
         is_perfect = num_pixels % i == 0
         if is_perfect:
-            dimensions = (i, num_pixels / i)
+            dimensions = (i, num_pixels // i)
         else:
-            dimensions = (i, num_pixels / i + 1)
+            dimensions = (i, num_pixels // i + 1)
         extra_bytes = dimensions[0] * dimensions[1] * 3 - num_bytes
         if dimensions[0]*dimensions[1] >= num_pixels and (best_dimensions is None or extra_bytes < best_extra_bytes):
             best_dimensions = dimensions
@@ -86,15 +90,15 @@ def choose_file_dimensions(infile, input_dimensions=None):
 
 
 def file_to_png(infile, outfile, dimensions=None):
-    dimensions = choose_file_dimensions(infile, dimensions)
-    dim = (int(dimensions[0]),int(dimensions[1]))
+    reader = FileReader.new(infile)
+    dimensions = choose_file_dimensions(reader, dimensions)
+    dim = (int(dimensions[0]), int(dimensions[1]))
     img = Image.new('RGB', dim)
     pixels = img.load()
     row = 0
     column = -1
     while True:
-
-        b = infile.buffer.read(3)
+        b = reader.read(3)
         if not b:
             break
 
@@ -103,17 +107,17 @@ def file_to_png(infile, outfile, dimensions=None):
             column = 0
             row += 1
             if args.no_progress is False:
-                percent = float(((row + 1) / dimensions[1]) * 100)
-                sys.stderr.write("\r%s%s" % (round(percent,2),"%"))
+                percent = float(((row + 1) // dimensions[1]) * 100)
+                sys.stderr.write("\r%s%s" % (round(percent, 2), "%"))
             
             if row >= img.size[1]:
                 raise Exception("Error: row %s is greater than maximum rows in image, %s." % (row, img.size[1]))
 
-        color = [b[0], 0, 0]  # ord(b[0])
+        color = [b[0], 0, 0]
         if len(b) > 1:
-            color[1] = b[1]  # ord(b[1])
+            color[1] = b[1]
         if len(b) > 2:
-            color[2] = b[2]  # ord(str(b[2]))
+            color[2] = b[2]
         
         if not row >= img.size[1]:
             pixels[column, row] = tuple(color)
@@ -129,8 +133,8 @@ def png_to_file(infile, outfile):
     pix_buffer = 0
     for row in range(img.size[1]):
         if args.no_progress is False:
-            percent = float(((row + 1) / img.size[1]) * 100)
-            sys.stderr.write("\r%s%s" % (round(percent,2),"%"))
+            percent = float(((row + 1) // img.size[1]) * 100)
+            sys.stderr.write("\r%s%s" % (round(percent, 2), "%"))
         for col in range(img.size[0]):
             pixel = rgb_im.getpixel((col, row))
 
@@ -164,9 +168,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="A simple cross-platform script for encoding any binary file into a "
                                                  "lossless PNG.", prog="bin2png")
 
-    parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin,
+    if sys.version_info.major >= 3:
+        read_mode = 'rb'
+        write_mode = 'wb'
+    else:
+        read_mode = 'r'
+        write_mode = 'w'
+    parser.add_argument('file', type=argparse.FileType(read_mode), default=sys.stdin,
                         help="the file to encode as a PNG (defaults to '-', which is stdin)")
-    parser.add_argument("-o", "--outfile", type=argparse.FileType('w'), default=sys.stdout,
+    parser.add_argument("-o", "--outfile", type=argparse.FileType(write_mode), default=sys.stdout,
                         help="the output file (defaults to '-', which is stdout)")
     parser.add_argument("-d", "--decode", action="store_true", default=False,
                         help="decodes the input PNG back to a file")
