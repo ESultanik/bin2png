@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
-from PIL import Image
-import math
 import io
+import math
 import os
 import sys
+
+from PIL import Image
+
 
 class FileReader(object):
     def __init__(self, path):
@@ -17,18 +19,23 @@ class FileReader(object):
                 self.length = os.path.getsize(path.name)
                 self.file = path
         else:
-            strPath = path.name
-            self.length = os.path.getsize(strPath)
-            self.file = open(strPath)
+            str_path = path.name
+            self.length = os.path.getsize(str_path)
+            self.file = open(str_path)
+
     def __len__(self):
         return self.length
+
     def __getattr__(self, attr):
         return getattr(self.file, attr)
+
     def __iter__(self):
         return iter(self.file)
 
-def choose_file_dimensions(infile, input_dimensions = None):
-    if input_dimensions is not None and len(input_dimensions) >= 2 and input_dimensions[0] is not None and input_dimensions[1] is not None:
+
+def choose_file_dimensions(infile, input_dimensions=None):
+    if input_dimensions is not None and len(input_dimensions) >= 2 and input_dimensions[0] is not None \
+            and input_dimensions[1] is not None:
         # the dimensions were already fully specified
         return input_dimensions
     if not isinstance(infile, FileReader):
@@ -39,21 +46,21 @@ def choose_file_dimensions(infile, input_dimensions = None):
     sqrt_max = int(math.ceil(sqrt))
     
     if args.square is True:
-        return (sqrt_max,sqrt_max) 
+        return sqrt_max, sqrt_max
    
     if input_dimensions is not None and len(input_dimensions) >= 1:
         if input_dimensions[0] is not None:
             # the width is specified but the height is not
             if num_pixels % input_dimensions[0] == 0:
-                return (input_dimensions[0], num_pixels / input_dimensions[0])
+                return input_dimensions[0], num_pixels / input_dimensions[0]
             else:
-                return (input_dimensions[0], num_pixels / input_dimensions[0] + 1)
+                return input_dimensions[0], num_pixels / input_dimensions[0] + 1
         else:
             # the height is specified but the width is not
             if num_pixels % input_dimensions[1] == 0:
-                return (num_pixels / input_dimensions[1], input_dimensions[1])
+                return num_pixels / input_dimensions[1], input_dimensions[1]
             else:
-                return (num_pixels / input_dimensions[1] + 1, input_dimensions[1])
+                return num_pixels / input_dimensions[1] + 1, input_dimensions[1]
 
     best_dimensions = None
     best_extra_bytes = None
@@ -70,12 +77,15 @@ def choose_file_dimensions(infile, input_dimensions = None):
         if is_perfect:
             break
     if best_extra_bytes > 0:
-        #TODO: If verbose mode is on...
+        # TODO: If verbose mode is on...
         if args.verbose is True:
-            sys.stderr.write("Could not find PNG dimensions that perfectly encode %s bytes; the encoding will be tail-padded with %s zeros.\n" % (num_bytes, int(best_extra_bytes)))
+            sys.stderr.write("Could not find PNG dimensions that perfectly encode "
+                             "%s bytes; the encoding will be tail-padded with %s zeros.\n"
+                             % (num_bytes, int(best_extra_bytes)))
     return best_dimensions
 
-def file_to_png(infile, outfile, dimensions = None):
+
+def file_to_png(infile, outfile, dimensions=None):
     dimensions = choose_file_dimensions(infile, dimensions)
     dim = (int(dimensions[0]),int(dimensions[1]))
     img = Image.new('RGB', dim)
@@ -98,25 +108,25 @@ def file_to_png(infile, outfile, dimensions = None):
             
             if row >= img.size[1]:
                 raise Exception("Error: row %s is greater than maximum rows in image, %s." % (row, img.size[1]))
-                print()
 
-        color = [b[0], 0, 0] #ord(b[0])
+        color = [b[0], 0, 0]  # ord(b[0])
         if len(b) > 1:
-            color[1] = b[1] #ord(b[1])
+            color[1] = b[1]  # ord(b[1])
         if len(b) > 2:
-            color[2] = b[2] #ord(str(b[2]))
+            color[2] = b[2]  # ord(str(b[2]))
         
         if not row >= img.size[1]:
-            pixels[column,row] = tuple(color)
+            pixels[column, row] = tuple(color)
     if args.no_progress is False:
-            sys.stderr.write("\n")
+        sys.stderr.write("\n")
     img.save(outfile.name, format="PNG")
+
 
 def png_to_file(infile, outfile):
     img = Image.open(infile.name)
     rgb_im = img.convert('RGB')
 
-    pixBuffer = 0
+    pix_buffer = 0
     for row in range(img.size[1]):
         if args.no_progress is False:
             percent = float(((row + 1) / img.size[1]) * 100)
@@ -124,39 +134,46 @@ def png_to_file(infile, outfile):
         for col in range(img.size[0]):
             pixel = rgb_im.getpixel((col, row))
 
-            #Omit the null bytes created in the generation of the image file.
-            #If it is a null byte, save it for later and see if there is going to be another null byte.
-            #If the original file ended in null bytes, it will omit those too, but there is
-            #probably no way to detect that.
+            # Omit the null bytes created in the generation of the image file.
+            # If it is a null byte, save it for later and see if there is going to be another null byte.
+            # If the original file ended in null bytes, it will omit those too, but there is
+            # probably no way to detect that.
             for segment in pixel:
                 if segment == 0:
-                    pixBuffer += 1
+                    pix_buffer += 1
                 else:
-                    if pixBuffer != 0:
-                        for color in range(pixBuffer): #flush the cache to the file if a non-null byte was detected
+                    if pix_buffer != 0:
+                        for color in range(pix_buffer):  # flush the cache to the file if a non-null byte was detected
                             outfile.write(chr(0))
-                        pixBuffer = 0
+                        pix_buffer = 0
                     outfile.write(chr(segment))
 
     if args.no_progress is False:
         sys.stderr.write("\n")
-    if pixBuffer != 0 and args.verbose is True:
-        length = pixBuffer
+    if pix_buffer != 0 and args.verbose is True:
+        length = pix_buffer
         if length == 1:
-            sys.stderr.write("Omitting %s zero from end of file\n" % (pixBuffer))
-        else: #Why not...
-            sys.stderr.write("Omitting %s zeroes from end of file\n" % (pixBuffer))
+            sys.stderr.write("Omitting %s zero from end of file\n" % pix_buffer)
+        else:  # Why not...
+            sys.stderr.write("Omitting %s zeroes from end of file\n" % pix_buffer)
+
 
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="A simple cross-platform script for encoding any binary file into a lossless PNG.", prog="bin2png")
+    parser = argparse.ArgumentParser(description="A simple cross-platform script for encoding any binary file into a "
+                                                 "lossless PNG.", prog="bin2png")
 
-    parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin, help="the file to encode as a PNG (defaults to '-', which is stdin)")
-    parser.add_argument("-o", "--outfile", type=argparse.FileType('w'), default=sys.stdout, help="the output file (defaults to '-', which is stdout)")
-    parser.add_argument("-d", "--decode", action="store_true", default=False, help="decodes the input PNG back to a file")
-    parser.add_argument("-w", "--width", type=int, default=None, help="constrain the output PNG to a specific width")
-    parser.add_argument("-l", "--height", type=int, default=None, help="constrain the output PNG to a specific height")
+    parser.add_argument('file', type=argparse.FileType('r'), default=sys.stdin,
+                        help="the file to encode as a PNG (defaults to '-', which is stdin)")
+    parser.add_argument("-o", "--outfile", type=argparse.FileType('w'), default=sys.stdout,
+                        help="the output file (defaults to '-', which is stdout)")
+    parser.add_argument("-d", "--decode", action="store_true", default=False,
+                        help="decodes the input PNG back to a file")
+    parser.add_argument("-w", "--width", type=int, default=None,
+                        help="constrain the output PNG to a specific width")
+    parser.add_argument("-l", "--height", type=int, default=None,
+                        help="constrain the output PNG to a specific height")
     parser.add_argument("-s", "--square", action="store_true", default=False, help="generate only square images")
     parser.add_argument("-v", "--verbose", action="store_true", default=False, help="enable debugging messages")
     parser.add_argument("--no-progress", action="store_true", default=False, help="don't display percent progress")
@@ -166,8 +183,8 @@ if __name__ == "__main__":
     if args.decode:
         png_to_file(args.file, args.outfile)
     else:
-        dimensions = None
+        dims = None
         if args.height is not None or args.width is not None:
-            dimensions = (args.width, args.height)
+            dims = (args.width, args.height)
         
-        file_to_png(args.file, args.outfile, dimensions=dimensions)
+        file_to_png(args.file, args.outfile, dimensions=dims)
